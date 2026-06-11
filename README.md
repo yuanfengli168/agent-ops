@@ -48,16 +48,31 @@ AgentOps is a multi-agent orchestrator that connects AI workers into a productio
 pip install agent-ops
 ```
 
+### Set up TUI tokens (one-time)
+
+AgentOps uses your **existing subscriptions** — no extra API keys to buy.
+
+**Claude (Lead):**
+1. Open [claude.ai](https://claude.ai) → F12 → Application → Cookies
+2. Copy `sessionKey` value → `export CLAUDE_SESSION_TOKEN=...`
+
+**MiniMax / 海螺AI (Review):**
+1. Open [hailuoai.com](https://hailuoai.com) → F12 → Network
+2. Send a message → find `authorization` header → `export MINIMAX_AUTH_TOKEN=...`
+
+**OpenClaw (UI / SDE):**
+- Already running locally at `localhost:3100`, no extra setup needed
+
+### Run
+
 ```python
 from agent_ops import OpsAgent
 
 ops = OpsAgent()
-
-# Register workers
-ops.register_worker("lead", provider="claude", model="claude-sonnet-4-20250514")
+ops.register_worker("lead", provider="claude-tui", model="claude-sonnet-4-20250514")
 ops.register_worker("ui", provider="openclaw", model="claude-sonnet-4-20250514")
 ops.register_worker("sde", provider="openclaw", model="claude-sonnet-4-20250514")
-ops.register_worker("review", provider="minimax", model="MiniMax-M1")
+ops.register_worker("review", provider="minimax-tui", model="MiniMax-M1")
 
 # Ship an idea
 ops.run("Build a CLI tool that converts currency using live exchange rates")
@@ -69,28 +84,35 @@ ops.run("Build a CLI tool that converts currency using live exchange rates")
 # agent-ops.yaml
 workers:
   lead:
-    provider: claude
+    provider: claude-tui        # Uses your Claude subscription
     model: claude-sonnet-4-20250514
-    api_key_env: ANTHROPIC_API_KEY
+    api_key_env: CLAUDE_SESSION_TOKEN
   
   ui:
-    provider: openclaw
+    provider: openclaw          # Local gateway, free
     model: claude-sonnet-4-20250514
+    base_url: http://localhost:3100
   
   sde:
-    provider: openclaw
+    provider: openclaw          # Local gateway, free
     model: claude-sonnet-4-20250514
+    base_url: http://localhost:3100
   
   review:
-    provider: minimax
+    provider: minimax-tui       # Uses your MiniMax subscription
     model: MiniMax-M1
-    api_key_env: MINIMAX_API_KEY
+    api_key_env: MINIMAX_AUTH_TOKEN
 
 project:
   board: ./board.md
   repo: ./project
   max_iterations: 10
 ```
+
+> **💡 No API keys to buy.** All workers use your existing subscriptions:
+> - Claude Lead → your Claude Pro/Team plan
+> - OpenClaw UI/SDE → local gateway (uses whatever models you've configured)
+> - MiniMax Review → your 海螺AI subscription
 
 ## Project Board
 
