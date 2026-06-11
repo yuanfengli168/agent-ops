@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,7 @@ from rich.console import Console
 
 from agent_ops.board import Board
 from agent_ops.providers import get_provider
-from agent_ops.types import Task, TaskStatus, WorkerConfig, WorkerRole
+from agent_ops.types import Task, TaskStatus, WorkerConfig, WorkerProvider, WorkerRole
 
 console = Console()
 
@@ -20,7 +21,7 @@ class OpsAgent:
     """Multi-agent orchestrator: idea → tasks → build → review → ship."""
 
     def __init__(self, config_path: str | Path | None = None) -> None:
-        self.workers: dict[str, WorkerProvider] = {}  # type: ignore[name-defined]
+        self.workers: dict[str, WorkerProvider] = {}
         self.board: Board | None = None
         self._config: dict[str, Any] = {}
 
@@ -129,8 +130,6 @@ class OpsAgent:
 
         # Step 3: Parse tasks from brief
         console.rule("[bold]Phase 3: Task Setup[/]")
-        import re
-
         task_pattern = re.compile(
             r"(T\d+):\s*(.+?)\s*@(lead|design|ui|sde|review)", re.IGNORECASE
         )
@@ -199,6 +198,25 @@ class OpsAgent:
             self.board.get_by_status(TaskStatus.IN_PROGRESS)
         )
         console.print(f"[green]✓ Done: {done}[/]  [yellow]⏳ Remaining: {remaining}[/]")
+        return f"Done: {done}, Remaining: {remaining}"
+
+    async def status(self) -> dict[str, Any]:
+        """Return task counts by status and list of tasks."""
+        if not self.board:
+            return {"tasks": {}, "total": 0}
+        counts: dict[str, int] = {s.value: 0 for s in TaskStatus}
+        for task in self.board.tasks.values():
+            counts[task.status.value] += 1
+        return {"tasks": counts, "total": len(self.board.tasks)}
+
+    async def health_check(self) -> dict[str, bool]:
+        """Check reachability of all registered workers."""
+        results: dict[str, bool] = {}
+        checks = {name: worker.health_check() for name, worker in self.workers.items()}
+        outcomes = await asyncio.gather(*checks.values(), return_exceptions=True)
+        for name, outcome in zip(checks.keys(), outcomes):
+            results[name] = outcome is True
+        return results
 
         return brief
 
