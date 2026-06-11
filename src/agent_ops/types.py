@@ -10,6 +10,7 @@ from typing import Any
 
 class WorkerRole(str, Enum):
     LEAD = "lead"
+    DESIGN = "design"
     UI = "ui"
     SDE = "sde"
     REVIEW = "review"

@@ -6,7 +6,13 @@ workers:
     # Claude TUI — uses your Claude Pro subscription
     provider: claude-tui
     model: claude-sonnet-4-20250514
-    api_key_env: CLAUDE_SESSION_TOKEN  # Extract from browser DevTools
+    api_key_env: CLAUDE_SESSION_TOKEN
+
+  design:
+    # Design worker — generates UI specs, mockups, 3D renders
+    provider: design
+    model: gpt-4o
+    api_key_env: OPENAI_API_KEY
 
   ui:
     # OpenClaw — local gateway, already running
@@ -21,17 +27,12 @@ workers:
     base_url: http://localhost:3100
 
   review:
-    # MiniMax TUI — uses your MiniMax subscription
+    # MiniMax TUI — checks code quality AND design compliance
     provider: minimax-tui
     model: MiniMax-M1
-    api_key_env: MINIMAX_AUTH_TOKEN  # Extract from browser DevTools
+    api_key_env: MINIMAX_AUTH_TOKEN
 
 project:
   board: ./board.md
   repo: ./project
   max_iterations: 10
-
-# Environment variables to set:
-# CLAUDE_SESSION_TOKEN — From Claude app cookies (DevTools > Application > Cookies > sessionKey)
-# CLAUDE_ORG_ID — From Claude app (optional, found in URL or API calls)
-# MINIMAX_AUTH_TOKEN — From MiniMax/Hailuo web app cookies/auth header

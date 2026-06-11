@@ -38,9 +38,10 @@ AgentOps is a multi-agent orchestrator that connects AI workers into a productio
 | Worker | Role | Provider |
 |--------|------|----------|
 | Lead | Requirements, architecture, task breakdown | Claude / Anthropic |
+| Design | UI specs, mockups, wireframes, 3D renders | GPT-4o / DALL-E |
 | UI | Frontend, UX, React/CSS | OpenClaw |
 | SDE | Backend, APIs, infra | OpenClaw |
-| Review | Code review, quality, security | MiniMax |
+| Review | Code review + **design compliance check** | MiniMax |
 
 ## Quick Start
 
@@ -136,11 +137,12 @@ Tasks are tracked in a markdown board:
 ## How It Works
 
 1. **Idea → Brief**: Lead worker creates a project brief with requirements
-2. **Brief → Tasks**: Lead breaks it into concrete tasks
-3. **Task → Code**: UI/SDE workers pick up tasks and implement
-4. **Code → Review**: Reviewer checks quality, suggests fixes
-5. **Fix → Re-review**: Loop until approved
-6. **Approved → Ship**: Merge and close
+2. **Brief → Design**: Design worker generates UI specs, mockups, and 3D renders
+3. **Brief → Tasks**: Lead breaks it into concrete tasks
+4. **Task → Code**: UI/SDE workers pick up tasks and implement (following design spec)
+5. **Code → Review**: Reviewer checks code quality **AND design compliance** (gap vs design)
+6. **Fix → Re-review**: Loop until code matches design
+7. **Approved → Ship**: Merge and close
 
 ## Development
 

@@ -80,7 +80,7 @@ class OpsAgent:
         return result
 
     async def run(self, idea: str, max_iterations: int = 10) -> str:
-        """Full pipeline: idea → brief → tasks → build → review → ship."""
+        """Full pipeline: idea → brief → design → tasks → build → review → ship."""
         if not self.board:
             self.board = Board(Path("./board.md"))
 
@@ -95,24 +95,46 @@ class OpsAgent:
             "2. Key features (max 5)\n"
             "3. Technical stack recommendation\n"
             "4. Task breakdown with IDs (T001, T002, etc.)\n"
-            "5. Assign each task to: lead, ui, sde, or review\n\n"
+            "5. Assign each task to: lead, design, ui, sde, or review\n\n"
             "Format tasks as: T{id}: {title} @{assignee}"
         )
         brief = await self.dispatch("lead", brief_prompt)
 
-        # Step 2: Parse tasks from brief
-        console.rule("[bold]Phase 2: Task Setup[/]")
+        # Step 2: Design — generate UI specs and mockup prompts
+        design_spec = ""
+        if "design" in self.workers:
+            console.rule("[bold]Phase 2: Design[/]")
+            design_prompt = (
+                f"Project brief:\n{brief}\n\n"
+                "Generate a complete UI/UX design specification:\n"
+                "1. Page layouts and component hierarchy\n"
+                "2. Color palette (hex codes)\n"
+                "3. Typography (fonts, sizes, weights)\n"
+                "4. Component specs (buttons, cards, forms, nav)\n"
+                "5. Spacing system (margins, padding, gaps)\n"
+                "6. Animations and interactions\n"
+                "7. 3D elements or visual effects\n"
+                "8. Responsive breakpoints\n\n"
+                "This design spec will be the contract that implementation must match."
+            )
+            design_spec = await self.dispatch("design", design_prompt)
+            console.print("[bold magenta]🎨 Design spec created[/]\n")
+
+        # Step 3: Parse tasks from brief
+        console.rule("[bold]Phase 3: Task Setup[/]")
         import re
 
-        task_pattern = re.compile(r"(T\d+):\s*(.+?)\s*@(lead|ui|sde|review)", re.IGNORECASE)
+        task_pattern = re.compile(
+            r"(T\d+):\s*(.+?)\s*@(lead|design|ui|sde|review)", re.IGNORECASE
+        )
         for match in task_pattern.finditer(brief):
             task_id, title, assignee = match.groups()
             self.board.add(title=title.strip(), assignee=WorkerRole(assignee.lower()))
 
         console.print(f"[bold]📋 Created {len(self.board.tasks)} tasks[/]\n")
 
-        # Step 3: Execute tasks
-        console.rule("[bold]Phase 3: Build[/]")
+        # Step 4: Execute tasks
+        console.rule("[bold]Phase 4: Build[/]")
         for iteration in range(max_iterations):
             pending = self.board.get_by_status(TaskStatus.TODO)
             if not pending:
@@ -123,25 +145,40 @@ class OpsAgent:
             task = pending[0]
             self.board.move(task.id, TaskStatus.IN_PROGRESS)
 
+            # Build context with design spec for UI tasks
+            task_context = {"system": f"Project brief:\n{brief}\n"}
+            if design_spec and task.assignee in (WorkerRole.UI, WorkerRole.SDE):
+                task_context["system"] += f"\nDesign specification (MUST follow):\n{design_spec}\n"
+
             console.print(f"  [yellow]→ {task.id}: {task.title} @{task.assignee.value}[/]")
             result = await self.dispatch(
                 task.assignee.value,
-                f"Task: {task.title}\n\nContext: {brief}\n\nPlease implement this.",
+                f"Task: {task.title}\n\nPlease implement this.",
+                context=task_context,
             )
 
-            # Step 4: Review (except review tasks themselves)
+            # Step 5: Review — checks code quality AND design compliance
             if task.assignee != WorkerRole.REVIEW:
                 self.board.move(task.id, TaskStatus.IN_REVIEW)
-                review_result = await self.dispatch(
-                    "review",
-                    f"Review this implementation:\n\n{result}\n\nTask: {task.title}",
+                review_prompt = (
+                    f"Review this implementation:\n\n{result}\n\nTask: {task.title}"
                 )
-                # Simple heuristic: if review says approve/looks good, mark done
+                if design_spec:
+                    review_prompt += (
+                        f"\n\n=== DESIGN SPECIFICATION ===\n{design_spec}\n\n"
+                        "IMPORTANT: Also check design compliance — does the implementation "
+                        "match the design spec? Report specific gaps:\n"
+                        "- Missing components\n"
+                        "- Wrong colors/spacing/typography\n"
+                        "- Missing 3D elements or animations\n"
+                        "- Layout differences\n"
+                        "- Responsiveness issues"
+                    )
+                review_result = await self.dispatch("review", review_prompt)
                 if any(kw in review_result.lower() for kw in ["approve", "looks good", "lgtm", "✓"]):
                     self.board.move(task.id, TaskStatus.DONE)
                     console.print(f"  [green]✓ {task.id} approved[/]")
                 else:
-                    # Keep in review, will retry
                     console.print(f"  [yellow]⟳ {task.id} needs revision[/]")
             else:
                 self.board.move(task.id, TaskStatus.DONE)
