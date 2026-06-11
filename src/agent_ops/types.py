@@ -40,10 +40,11 @@ class Task:
 @dataclass
 class WorkerConfig:
     role: WorkerRole
-    provider: str  # "claude", "openclaw", "minimax", "custom"
+    provider: str  # "claude", "openclaw", "minimax", "design", "custom"
     model: str = ""
     api_key_env: str = ""  # env var name for API key
     base_url: str = ""  # custom endpoint
+    enabled: bool = True  # optional — set false to skip this worker
     extra: dict[str, Any] = field(default_factory=dict)
 
 

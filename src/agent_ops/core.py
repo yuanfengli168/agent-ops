@@ -44,6 +44,7 @@ class OpsAgent:
                 model=wcfg.get("model", ""),
                 api_key_env=wcfg.get("api_key_env", ""),
                 base_url=wcfg.get("base_url", ""),
+                enabled=wcfg.get("enabled", True),
                 extra=wcfg.get("extra", {}),
             )
             self.workers[name] = get_provider(cfg)
@@ -55,6 +56,7 @@ class OpsAgent:
         model: str = "",
         api_key_env: str = "",
         base_url: str = "",
+        enabled: bool = True,
         **extra: Any,
     ) -> None:
         """Programmatically register a worker."""
@@ -64,6 +66,7 @@ class OpsAgent:
             model=model,
             api_key_env=api_key_env,
             base_url=base_url,
+            enabled=enabled,
             extra=extra,
         )
         self.workers[role] = get_provider(cfg)
@@ -71,11 +74,15 @@ class OpsAgent:
             self.board = Board(Path("./board.md"))
 
     async def dispatch(self, role: str, prompt: str, context: dict[str, Any] | None = None) -> str:
-        """Send a task to a specific worker."""
+        """Send a task to a specific worker. Skips if worker is disabled."""
         if role not in self.workers:
             raise ValueError(f"Unknown worker: {role}. Available: {list(self.workers)}")
+        worker = self.workers[role]
+        if not worker.config.enabled:
+            console.print(f"[dim]⏭ {role} is disabled, skipping[/]")
+            return ""
         console.print(f"[bold blue]→ Dispatching to {role}[/]")
-        result = await self.workers[role].execute(prompt, context)
+        result = await worker.execute(prompt, context)
         console.print(f"[bold green]✓ {role} responded[/]")
         return result
 
