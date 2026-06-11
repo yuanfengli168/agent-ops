@@ -4,6 +4,8 @@
 
 AgentOps is a multi-agent orchestrator that connects AI workers into a production pipeline. Define your idea, and the system breaks it down, assigns tasks, and ships it through an iterative loop of building and reviewing.
 
+**The core idea:** use AI subscriptions you already pay for (Claude Pro, MiniMax, GitHub Copilot) as worker backends — no per-call API fees.
+
 ## Architecture
 
 ```
@@ -35,13 +37,13 @@ AgentOps is a multi-agent orchestrator that connects AI workers into a productio
 
 ## Workers
 
-| Worker | Role | Provider |
-|--------|------|----------|
-| Lead | Requirements, architecture, task breakdown | Claude TUI |
-| Design | UI design drafts (HTML/Tailwind code) | MiniMax M3 |
-| UI | Frontend, UX, React/CSS | MiniMax M3 |
-| SDE | Backend, APIs, infra | OpenClaw |
-| Review | Code review + **design compliance check** | MiniMax M3 |
+| Worker | Role | Provider options |
+|--------|------|------------------|
+| Lead | Requirements, architecture, task breakdown | Claude TUI, Copilot |
+| Design | UI design drafts (HTML/Tailwind code) | MiniMax TUI |
+| UI | Frontend, UX, React/CSS | MiniMax TUI, OpenClaw, Copilot |
+| SDE | Backend, APIs, infra | OpenClaw, Copilot |
+| Review | Code review + **design compliance check** | MiniMax TUI, Copilot |
 
 ## Quick Start
 
@@ -49,15 +51,22 @@ AgentOps is a multi-agent orchestrator that connects AI workers into a productio
 pip install agent-ops
 ```
 
-### Set up TUI tokens (one-time)
+### Set up tokens (one-time)
 
-AgentOps uses your **existing subscriptions** — no extra API keys to buy.
+AgentOps hooks into your **existing subscriptions** — no extra API keys to buy.
 
-**Claude (Lead):**
+**Option A — GitHub Copilot (easiest, no cookie extraction):**
+```bash
+# If you have the GitHub CLI:
+gh auth login   # one-time, already done for most devs
+# Token is auto-detected — nothing else needed
+```
+
+**Option B — Claude TUI (claude.ai subscription):**
 1. Open [claude.ai](https://claude.ai) → F12 → Application → Cookies
 2. Copy `sessionKey` value → `export CLAUDE_SESSION_TOKEN=...`
 
-**MiniMax / 海螺AI (Review):**
+**Option C — MiniMax / 海螺AI:**
 1. Open [hailuoai.com](https://hailuoai.com) → F12 → Network
 2. Send a message → find `authorization` header → `export MINIMAX_AUTH_TOKEN=...`
 
@@ -66,6 +75,20 @@ AgentOps uses your **existing subscriptions** — no extra API keys to buy.
 
 ### Run
 
+**With GitHub Copilot (recommended — no cookie extraction needed):**
+```python
+from agent_ops import OpsAgent
+
+ops = OpsAgent()
+ops.register_worker("lead", provider="copilot", model="claude-sonnet-4-5")
+ops.register_worker("ui", provider="copilot", model="gpt-4o")
+ops.register_worker("sde", provider="copilot", model="gpt-4o")
+ops.register_worker("review", provider="copilot", model="gpt-4o-mini")
+
+ops.run("Build a CLI tool that converts currency using live exchange rates")
+```
+
+**With Claude TUI + OpenClaw + MiniMax:**
 ```python
 from agent_ops import OpsAgent
 
@@ -77,6 +100,13 @@ ops.register_worker("review", provider="minimax-tui", model="MiniMax-M1")
 
 # Ship an idea
 ops.run("Build a CLI tool that converts currency using live exchange rates")
+```
+
+**Or use the CLI:**
+```bash
+agent-ops run "Build a CLI tool that converts currency using live exchange rates"
+agent-ops health   # check all workers
+agent-ops status   # show board task counts
 ```
 
 ## Configuration

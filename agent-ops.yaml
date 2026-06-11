@@ -32,6 +32,20 @@ workers:
     model: MiniMax-M3
     api_key_env: MINIMAX_AUTH_TOKEN
 
+  # --- GitHub Copilot alternative (uncomment to use) ---
+  # lead:
+  #   provider: copilot
+  #   model: claude-sonnet-4-5    # or gpt-4o, o3-mini, etc.
+  #   # token auto-detected from `gh auth login` or GH_TOKEN env var
+  #
+  # sde:
+  #   provider: copilot
+  #   model: gpt-4o
+  #
+  # review:
+  #   provider: copilot
+  #   model: gpt-4o-mini
+
 project:
   board: ./board.md
   repo: ./project
