@@ -186,7 +186,9 @@ class OpsAgent:
                     self.board.move(task.id, TaskStatus.DONE)
                     console.print(f"  [green]✓ {task.id} approved[/]")
                 else:
-                    console.print(f"  [yellow]⟳ {task.id} needs revision[/]")
+                    # Re-queue for another build iteration
+                    self.board.move(task.id, TaskStatus.TODO)
+                    console.print(f"  [yellow]⟳ {task.id} needs revision, re-queued[/]")
             else:
                 self.board.move(task.id, TaskStatus.DONE)
 
