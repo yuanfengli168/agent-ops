@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from agent_ops.design import ImageDesignProvider, MidjourneyProvider
+from agent_ops.design import CodeDesignProvider, MidjourneyProvider
 from agent_ops.types import WorkerConfig, WorkerProvider
 
 
@@ -269,8 +269,8 @@ PROVIDERS: dict[str, type[WorkerProvider]] = {
     "minimax-tui": MiniMaxTUIProvider,
     # Browser automation fallback
     "browser": BrowserSessionProvider,
-    # Design providers (mockups, wireframes, 3D renders)
-    "design": ImageDesignProvider,
+    # Design providers (code-as-design: HTML/Tailwind drafts)
+    "design": CodeDesignProvider,
     "midjourney": MidjourneyProvider,
 }
 

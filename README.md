@@ -37,11 +37,11 @@ AgentOps is a multi-agent orchestrator that connects AI workers into a productio
 
 | Worker | Role | Provider |
 |--------|------|----------|
-| Lead | Requirements, architecture, task breakdown | Claude / Anthropic |
-| Design | UI specs, mockups, wireframes, 3D renders | GPT-4o / DALL-E |
-| UI | Frontend, UX, React/CSS | OpenClaw |
+| Lead | Requirements, architecture, task breakdown | Claude TUI |
+| Design | UI design drafts (HTML/Tailwind code) | MiniMax M3 |
+| UI | Frontend, UX, React/CSS | MiniMax M3 |
 | SDE | Backend, APIs, infra | OpenClaw |
-| Review | Code review + **design compliance check** | MiniMax |
+| Review | Code review + **design compliance check** | MiniMax M3 |
 
 ## Quick Start
 

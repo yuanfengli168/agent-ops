@@ -1,8 +1,7 @@
-"""Design provider — generates UI mockups, wireframes, and 3D renders."""
+"""Design provider — generates UI design drafts as HTML/Tailwind code."""
 
 from __future__ import annotations
 
-import base64
 import os
 from typing import Any
 
@@ -11,54 +10,57 @@ import httpx
 from agent_ops.types import WorkerConfig, WorkerProvider
 
 
-class ImageDesignProvider(WorkerProvider):
+class CodeDesignProvider(WorkerProvider):
     """
-    Design worker that generates UI mockups, wireframes, and 3D renders.
+    Design worker that generates UI design drafts as runnable HTML/CSS/JS code.
     
-    Uses image generation models (GPT-4o, DALL-E, Midjourney via API, etc.)
-    to produce design artifacts before implementation begins.
+    "Code as design" — instead of static mockup images, this worker produces
+    live, viewable HTML/Tailwind pages that serve as the design contract.
     
-    These designs become the "contract" that the Review worker checks against.
+    UI/SDE workers then implement directly based on this code.
+    Review workers compare implementation against this visual reference.
     """
 
     async def execute(self, prompt: str, context: dict[str, Any] | None = None) -> str:
-        api_key = os.environ.get(self.config.api_key_env or "OPENAI_API_KEY", "")
-        model = self.config.model or "gpt-4o"
-        base_url = self.config.base_url or "https://api.openai.com"
+        token = os.environ.get(self.config.api_key_env or "MINIMAX_AUTH_TOKEN", "")
+        model = self.config.model or "MiniMax-M3"
+        base_url = self.config.base_url or "https://api.minimax.chat"
 
-        # Build a design-focused prompt
         design_prompt = (
-            "You are a senior UI/UX designer. Based on the following request, "
-            "create a detailed design specification including:\n\n"
-            "1. LAYOUT: Page layout and component placement\n"
-            "2. COLORS: Color palette with hex codes\n"
-            "3. TYPOGRAPHY: Font choices, sizes, weights\n"
-            "4. COMPONENTS: Detailed component descriptions\n"
-            "5. SPACING: Margins, padding, gaps\n"
-            "6. INTERACTIONS: Animations, transitions, hover states\n"
-            "7. 3D ELEMENTS: Any 3D renders or visual effects needed\n"
-            "8. RESPONSIVE: Breakpoint behavior\n\n"
+            "You are a senior UI/UX designer who codes. Generate a COMPLETE, "
+            "runnable HTML design draft using Tailwind CSS (via CDN).\n\n"
+            "Requirements:\n"
+            "- Single HTML file, self-contained, opens in browser\n"
+            "- Use Tailwind CSS via <script src='https://cdn.tailwindcss.com'></script>\n"
+            "- Include all pages/views as sections\n"
+            "- Show hover states, transitions, animations\n"
+            "- Use placeholder images from https://placehold.co\n"
+            "- Make it responsive (mobile + desktop)\n"
+            "- Include 3D effects if specified (use CSS transforms or Three.js)\n"
+            "- Add comments marking each component/section\n\n"
             f"Project: {prompt}\n\n"
-            "Also suggest image generation prompts for key screens/mocks."
+            "Output ONLY the HTML code, no explanations."
         )
 
         if context and "system" in context:
             design_prompt = context["system"] + "\n\n" + design_prompt
 
         headers = {
-            "authorization": f"Bearer {api_key}",
+            "authorization": f"Bearer {token}",
             "content-type": "application/json",
+            "origin": "https://hailuoai.com",
+            "referer": "https://hailuoai.com/",
         }
 
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": design_prompt}],
-            "max_tokens": 4096,
+            "stream": False,
         }
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{base_url}/v1/chat/completions",
+                f"{base_url}/v1/text/chatcompletion_v2",
                 headers=headers,
                 json=payload,
                 timeout=120,
@@ -67,47 +69,15 @@ class ImageDesignProvider(WorkerProvider):
             data = resp.json()
             return data["choices"][0]["message"]["content"]
 
-    async def generate_mockup(self, prompt: str) -> str:
-        """Generate an actual image mockup using image generation API."""
-        api_key = os.environ.get(self.config.api_key_env or "OPENAI_API_KEY", "")
-        image_model = self.config.extra.get("image_model", "dall-e-3")
-        base_url = self.config.base_url or "https://api.openai.com"
-
-        headers = {
-            "authorization": f"Bearer {api_key}",
-            "content-type": "application/json",
-        }
-
-        payload = {
-            "model": image_model,
-            "prompt": f"UI design mockup, clean modern interface: {prompt}",
-            "n": 1,
-            "size": "1792x1024",
-            "quality": "hd",
-        }
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{base_url}/v1/images/generations",
-                headers=headers,
-                json=payload,
-                timeout=120,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["data"][0].get("url", "") or data["data"][0].get("b64_json", "")
-
     async def health_check(self) -> bool:
-        api_key = os.environ.get(self.config.api_key_env or "OPENAI_API_KEY", "")
-        return bool(api_key)
+        token = os.environ.get(self.config.api_key_env or "MINIMAX_AUTH_TOKEN", "")
+        return bool(token)
 
 
 class MidjourneyProvider(WorkerProvider):
     """
     Midjourney-based design provider via third-party API proxy.
-    
-    For high-quality 3D renders and UI mockups.
-    Uses services like goapi.ai or similar Midjourney API proxies.
+    Optional — for when you need high-fidelity image mockups instead of code.
     """
 
     async def execute(self, prompt: str, context: dict[str, Any] | None = None) -> str:
