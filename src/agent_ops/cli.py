@@ -28,7 +28,7 @@ def main() -> None:
 
     # dispatch
     disp_cmd = sub.add_parser("dispatch", help="Send a prompt to a specific worker")
-    disp_cmd.add_argument("role", choices=["lead", "ui", "sde", "review"])
+    disp_cmd.add_argument("role", choices=["lead", "design", "ui", "sde", "qa", "review", "helper"])
     disp_cmd.add_argument("prompt", help="Prompt to send")
     disp_cmd.add_argument("--config", "-c", default="agent-ops.yaml")
 

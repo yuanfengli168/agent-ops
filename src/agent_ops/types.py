@@ -13,13 +13,16 @@ class WorkerRole(str, Enum):
     DESIGN = "design"
     UI = "ui"
     SDE = "sde"
+    QA = "qa"
     REVIEW = "review"
+    HELPER = "helper"
 
 
 class TaskStatus(str, Enum):
     TODO = "TODO"
     IN_PROGRESS = "IN_PROGRESS"
     IN_REVIEW = "IN_REVIEW"
+    IN_QA = "IN_QA"
     DONE = "DONE"
     KILLED = "KILLED"
 

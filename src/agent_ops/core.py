@@ -103,7 +103,7 @@ class OpsAgent:
             "2. Key features (max 5)\n"
             "3. Technical stack recommendation\n"
             "4. Task breakdown with IDs (T001, T002, etc.)\n"
-            "5. Assign each task to: lead, design, ui, sde, or review\n\n"
+            "5. Assign each task to: lead, design, ui, sde, qa, review, or helper\n\n"
             "Format tasks as: T{id}: {title} @{assignee}"
         )
         brief = await self.dispatch("lead", brief_prompt)
@@ -131,7 +131,7 @@ class OpsAgent:
         # Step 3: Parse tasks from brief
         console.rule("[bold]Phase 3: Task Setup[/]")
         task_pattern = re.compile(
-            r"(T\d+):\s*(.+?)\s*@(lead|design|ui|sde|review)", re.IGNORECASE
+            r"(T\d+):\s*(.+?)\s*@(lead|design|ui|sde|qa|review|helper)", re.IGNORECASE
         )
         for match in task_pattern.finditer(brief):
             task_id, title, assignee = match.groups()

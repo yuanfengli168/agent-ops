@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from agent_ops.design import CodeDesignProvider, MidjourneyProvider
+from agent_ops.qa import QAProvider
 from agent_ops.types import WorkerConfig, WorkerProvider
 
 
@@ -407,6 +408,8 @@ PROVIDERS: dict[str, type[WorkerProvider]] = {
     # GitHub Copilot subscription
     "copilot": GitHubCopilotProvider,
     "github-copilot": GitHubCopilotProvider,
+    # QA worker (placeholder; wraps any LLM, real checks come in P2)
+    "qa": QAProvider,
     # Browser automation fallback
     "browser": BrowserSessionProvider,
     # Design providers (code-as-design: HTML/Tailwind drafts)
