@@ -324,3 +324,96 @@ Things noticed but not yet addressed:
   `@design`-tagged build task. Need to disambiguate.
 - **No provider tests, no end-to-end test.** Only board CRUD + a trivial
   import check. Won't catch regressions in the orchestration loop.
+
+---
+
+## P4 — Complex E2E tests (postponed 2026-06-13)
+
+User explicitly postponed this. Resurfaces as a P4 backlog item until
+MVP2 ships. The goal is to validate that the orchestrator + provider
+stack can drive a **multi-step, multi-tool** flow that exercises:
+
+### 4.1 The "build + ship to new repo" test
+
+**What it does:**
+1. UI worker builds a small frontend (one HTML file, Tailwind)
+2. SDE worker uses a **`github` tool** to:
+   - Create a new test repo under the user's GitHub account
+   - Commit the HTML file
+   - Push to main
+3. QA worker uses the **InteractiveBrowser** (MVP2-0) to verify:
+   - The repo exists on github.com
+   - The page renders without console errors
+   - Network requests look reasonable
+
+**Why it matters:** MVP1 only tested "LLM writes a file to disk". The
+real value of agent-ops is **driving external state** (GitHub, Vercel,
+DBs). If this test passes, we know the tool-calling abstraction works
+end-to-end.
+
+**What we'd need to build:**
+
+| Component | Effort | Notes |
+|---|---|---|
+| `github` tool wrapper (uses `gh` CLI) | ~3 hours | Trivial — `gh repo create`, `gh api`, etc. |
+| `tool-calling` abstraction on top of our 2 orchestrators | ~1 day | The hard part. Lightchain has no tool API; langgraph has `ToolNode`. Either we write our own (~3 hours) or we use langgraph just for tool calling. |
+| E2E harness (runs both orchestrators) | ~2 hours | Bash script that runs the same flow twice and diffs the output |
+| Test fixture (a known-bad HTML to feed in) | ~30 min | Trivial |
+| **Total** | **~1.5 working days** | |
+
+**Open questions:**
+- Does the `github` tool use a real GitHub account, or a sandbox?
+  (Real = `gh auth login` against the user's account, with a confirm
+  prompt for every write. Sandbox = a test GitHub org that gets nuked
+  after each run.)
+- Should the tool be its own `WorkerProvider` (so any worker can call
+  it), or should it be a tool that any worker can be configured to
+  use? My recommendation: **tool**, with a `tools: [...]` config on
+  each worker. See [MVP2-0 § Provider](MVP2-0.md#4-the-new-provider).
+- How do we handle the case where the SDE worker tries to commit, but
+  the commit message has a code-block fence in it? (LLMs love to wrap
+  everything in ```.) Need a sanitizer step.
+
+### 4.2 The "frontend + e2e test runner" test
+
+**What it does:**
+1. UI worker builds a frontend
+2. SDE worker builds a backend (FastAPI or similar)
+3. SDE worker writes an e2e test (Playwright) that drives the UI
+   against the running backend
+4. QA worker runs the e2e test, reports pass/fail
+5. If fail: escalate to Lead for spec clarification
+
+**Why it matters:** This is the canonical "shipping" flow. Frontend +
+backend + tests is what 90% of agent-ops users actually want.
+
+**What we'd need to build (on top of 4.1):**
+- An e2e test runner that can spin up the backend, run the test, tear down
+- An escalation rule: if QA fails, ask Lead (escalation chain)
+
+**Open question:** Is this test in scope for agent-ops, or should we
+defer it to a separate MVP3 e2e-orchestrator tool? (See § 3.2.)
+
+### 4.3 The "complex spec, no HTML reference" test
+
+**What it does:**
+1. User provides only a design doc (no HTML mockup, no images)
+2. UI worker has to **invent** the design from scratch
+3. QA worker checks the result against a list of best-practice rules
+   (a11y, responsive, etc.)
+
+**Why it matters:** All the current tests assume the user has
+artifacts. Real users often have only a "build me X" Slack message.
+This test exercises the "from nothing" path.
+
+**Status:** **Backlogged further** than 4.1/4.2. Probably P5 or later.
+
+---
+
+## Tracking
+
+| Item | Status | Source |
+|---|---|---|
+| P4.1 (build + ship to new repo) | Backlogged — user postponed 2026-06-13 | chat |
+| P4.2 (frontend + e2e test runner) | Backlogged — depends on P4.1 | this doc |
+| P4.3 (complex spec, no HTML reference) | Backlogged further | this doc |
