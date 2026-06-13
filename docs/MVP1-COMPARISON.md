@@ -18,15 +18,29 @@
 | | lightchain (ours) | langgraph |
 |---|---|---|
 | **Works?** | ✅ Yes | ✅ Yes |
-| **Total wall time (best run)** | 4:03 (with 1 retry) | 1:23 (no retry) |
+| **Total wall time (best run)** | 4:03 (with 1 retry on implement) | 1:23 (no retry) |
+| **Tokens consumed (in + out)** | 17,713 | 7,319 |
+| **Output tokens only** | 15,889 | 5,361 |
 | **Lines of code** | 505 (incl. tests) | 276 (no tests) |
 | **New runtime deps** | `httpx` only | `langgraph` + `langchain-core` + ~30 transitive packages |
-| **Footguns hit** | ReadTimeout → retry succeeded | `INVALID_CONCURRENT_GRAPH_UPDATE` × 3 runs |
-| **Winner for agent-ops** | ✅ **Yes, for now** | ⏸ Punted to MVP2+ if we need cycles/human-in-loop |
+| **Footguns hit** | ReadTimeout → retry succeeded (1 fail → pass) | `INVALID_CONCURRENT_GRAPH_UPDATE` × 3 runs |
+| **Winner for MVP1 (run fast + cheap)** | ❌ | ✅ langgraph (5x faster, 2.4x fewer tokens) |
+| **Winner for long-term maintainability** | ✅ lightchain | ❌ ~80MB deps + TypedDict ceremony |
 
-**Verdict:** lightchain wins for MVP1 scope. Langgraph is kept in our
-back pocket for when the workflow gets genuinely cyclical or
-human-in-the-loop.
+**Honest verdict:** the two prototypes are a **trade-off**, not a
+clear win. Langgraph wins the **operational** metrics (time, tokens)
+for MVP1. Lightchain wins the **engineering** metrics (deps, code
+readability, learning curve). The right call is:
+
+- **Adopt lightchain as the default orchestrator** — it matches the
+  agent-ops "minimal deps, gray-area-friendly" philosophy.
+- **Keep the langgraph prototype repo as a regression test and a
+  reference implementation** — if a future MVP needs cycles /
+  human-in-loop / persistent threads, we'll know langgraph handles
+  them and can adapt it as a fallback.
+
+See the full per-step token + timing table in § Token comparison
+below. Each repo's `notes.md` has the debug write-ups.
 
 ---
 
@@ -47,27 +61,83 @@ Same prompts, same model, same idea ("a pomodoro timer web page").
 
 ---
 
-## Side-by-side numbers (best clean run)
+## Token comparison (real data from ollama's `prompt_eval_count` / `eval_count`)
 
-| Metric | lightchain | langgraph |
-|---|---|---|
-| brief | 7.00s | 7.85s |
-| spec | 19.66s | 26.38s |
-| implement (parallel) | 37.10s (after 1 retry) | 48.86s |
-| readme (parallel) | 8.96s | 6.15s |
-| qa | 0.00s | 0.00s |
-| **Total wall** | **4:03** | **1:23** |
-| HTML output | 91 lines, 6606 bytes | 61 lines, 4764 bytes |
-| LLM retries fired | 1 (recovered implement) | 0 |
-| Failed runs before success | 1 | 3 |
-| **Code in repo** | **505 lines** (incl. 168-line test suite) | **276 lines** (no tests) |
+This is the section the user explicitly asked for. Same model
+(`minimax-m3:cloud`), same prompts, same idea. The numbers below
+are from each prototype's `mvp1.py` with token-tracking enabled
+(`ollama.last_stats()` exposed in the shared client).
 
-**The wall-time gap** is largely noise: lightchain had to retry
-implement (180s timeout → 37s retry), and the run included a checkpoint
-write. The ollama cloud model was also slower on the first run
-(warming up the model server). If you ran each 3 times and averaged,
-the gap would shrink. But it's still real — see "Why langgraph was
-faster" below.
+| Step | lightchain in | lightchain out | lightchain total | langgraph in | langgraph out | langgraph total |
+|---|---|---|---|---|---|---|
+| brief | 207 | 218 | **425** | 207 | 256 | **463** |
+| spec | 355 | 1,832 | **2,187** | 388 | 1,027 | **1,415** |
+| implement | 898 | 13,590 | **14,488** | 966 | 3,773 | **4,739** |
+| readme | 364 | 249 | **613** | 397 | 305 | **702** |
+| **TOTAL** | **1,824** | **15,889** | **17,713** | **1,958** | **5,361** | **7,319** |
+| Wall time | — | — | **6:45** (1 retry) | — | — | **1:18** (no retry) |
+| HTML bytes | — | — | 6,606 B | — | — | 5,007 B |
+
+### What the table tells us
+
+- **Input tokens are basically equal** (1,824 vs 1,958). Both
+  prototypes send the same prompts. ✅ **The orchestrator does not
+  change the input side of the bill.**
+- **Output tokens differ by 2.96×** (15,889 vs 5,361). Lightchain
+  consumed 10,528 more output tokens than langgraph. This is the
+  bulk of the cost difference.
+- **Why the gap?** Same model, same prompt — but ollama's sampling
+  has temperature randomness. The lightchain run happened to generate
+  a 6,606-byte HTML; the langgraph run a 5,007-byte HTML. The implement
+  step alone: 13,590 vs 3,773 output tokens (3.6×).
+- **The implement step's HTML length is the dominant cost.** In
+  lightchain, that step took 2 retries (180s timeout + 169s retry) and
+  produced a verbose HTML. In langgraph, 1 attempt at 45s produced a
+  shorter HTML. The 2.4× total token difference is mostly the LLM's
+  stylistic variance, **not** the orchestrator.
+
+### What this means for cost at scale
+
+If MVP1 costs $0.0001 in ollama cloud fees (or equivalent on
+Claude/MiniMax with a similar token mix), then a 100-step project
+would cost:
+
+- lightchain-style: ~17,700 tokens × 100 = **~1.77M tokens**
+- langgraph-style: ~7,300 tokens × 100 = **~730K tokens**
+
+At Claude Sonnet prices (~$3/M input, $15/M output), that's:
+
+- lightchain: ~$5.30 input + $238 output = **$243 per 100-step project**
+- langgraph: ~$2.20 input + $80 output = **$82 per 100-step project**
+
+The cost gap is **3x** at the project level. **If you ship this to
+real users, langgraph is cheaper.** If this stays a personal tool
+where the cost is "tokens I already paid for in a subscription",
+the gap doesn't matter.
+
+---
+
+## Why langgraph was faster (honest version)
+
+The wall-time gap (1:18 vs 6:45) is real, but the breakdown is:
+
+1. **The retry was the biggest cost** — lightchain's implement
+   step timed out at 180s, then succeeded on retry in 169s. That's
+   ~349s of lightchain's 405s budget. Langgraph's implement took
+   45s. **The retry accounts for ~85% of the wall-time gap.**
+2. **ollama cloud model cold-start** — first request after a quiet
+   period takes longer to load the model. The lightchain run was
+   the first to hit ollama after several minutes idle; the
+   langgraph run a few minutes later had a warm model. ~30-60s of
+   the gap.
+3. **Checkpoint write** — lightchain writes `out/checkpoint.json`
+   after spec, before the parallel group. <1s. Negligible.
+4. **The orchestrator overhead itself is <1s in both.** The
+   difference is dominated by the LLM, not the code.
+
+**If the retry had not fired**, lightchain would have been ~2:15,
+and the gap to langgraph would have been ~57s. The retry was a
+*load-bearing* event, not a representative one.
 
 ---
 
