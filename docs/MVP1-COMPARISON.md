@@ -7,6 +7,7 @@
 > Both prototypes live in sibling repos:
 > - [agent-ops-lightchain](https://github.com/yuanfengli168/agent-ops-lightchain) — our home-grown 131-line orchestrator
 > - [agent-ops-langgraph](https://github.com/yuanfengli168/agent-ops-langgraph) — the same MVP1 in langgraph
+> - [agent-ops-langgraph-providers](https://github.com/yuanfengli168/agent-ops-langgraph-providers) — `BaseChatModel` wrappers for gray-area APIs (MiniMax, Claude Code, Copilot), a plugin for the langgraph prototype
 >
 > Each repo's `notes.md` has the full per-step write-up with debug
 > dimensions D1-D5. This doc is the **head-to-head**.
@@ -358,3 +359,49 @@ python examples/mvp1.py          # ~3 min on first run, ~1.5 min after
 ```
 
 Both need `ollama serve` running and `ollama pull minimax-m3:cloud`.
+
+---
+
+## Using gray-area providers with langgraph
+
+The MVP1 comparison above used `ollama:minimax-m3:cloud` for both
+prototypes. But the real point of agent-ops is to use **your existing
+subscriptions** (Claude Pro, MiniMax 海螺AI, Copilot), not pay
+per-call through the official API.
+
+For the lightchain prototype, this is trivial: just import the
+`WorkerProvider` for MiniMax/Claude/Copilot from the main
+`agent-ops` package and register it. For the langgraph prototype,
+the `BaseChatModel` abstraction is picky about the HTTP shape, so
+we wrote dedicated wrappers in a sibling repo:
+
+**[agent-ops-langgraph-providers](https://github.com/yuanfengli168/agent-ops-langgraph-providers)**
+
+It ships 3 `BaseChatModel` subclasses:
+
+| Class | Endpoint | Auth needed |
+|---|---|---|
+| `MiniMaxChatModel` | hailuoai.com internal | `MINIMAX_AUTH_TOKEN` |
+| `ClaudeTUIChatModel` | claude.ai internal | `CLAUDE_SESSION_TOKEN` + `CLAUDE_ORG_ID` |
+| `CopilotChatModel` | api.githubcopilot.com | `gh auth login` (auto-detected) |
+
+In a langgraph node, they look like any other langchain LLM:
+
+```python
+from langgraph.graph import StateGraph, END
+from agent_ops_langgraph_providers import CopilotChatModel
+
+llm = CopilotChatModel(model="gpt-4o")  # or "claude-sonnet-4-5"
+
+def my_node(state):
+    state["result"] = llm.invoke(f"Do the thing: {state['idea']}").content
+    return state
+```
+
+**The MVP1 token comparison would change significantly** if we ran
+it through these providers instead of ollama — input costs go to
+zero (subscription), but per-call latency differs. That's a future
+data point; for now ollama is the cheapest local LLM and gives us
+the cleanest A/B.
+
+See `agent-ops-langgraph-providers/README.md` for full setup.
